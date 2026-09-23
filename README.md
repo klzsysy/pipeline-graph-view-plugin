@@ -59,25 +59,38 @@
 
 ### 构建与安装
 
+**前置：JDK 21**（本机 `$(/usr/libexec/java_home -v 21)` → OpenJDK 21.0.12.1）+ **Maven 3.9+**。
+
 ```bash
-mvn -DskipTests package     # 需要 JDK 17+ 与 Maven；产物：target/pipeline-graph-view.hpi
+cd <repo>
+VER="$(date +%Y%m%d%H%M).v$(git rev-parse --short HEAD)"   # 版本号规则见下一节
+mvn -B -DskipTests -Dexec.skip=true -Dchangelist="$VER" package
+ls -l target/pipeline-graph-view.hpi
 ```
 
 Jenkins → Manage Jenkins → Plugins → Advanced settings → **Deploy Plugin** 上传该 HPI，
 然后**硬刷新浏览器**（Cmd/Ctrl+Shift+R），否则旧的前端 bundle 还在缓存里。
 
-### 本机构建（macOS，系统里没有 JDK 17+ / Maven 时）
+### 版本号规则（重要）
 
-Jenkins 插件需要 **JDK 17+** 与 **Maven**（本机系统自带的 `java` 可能是 1.8）。
-macOS 上最省事的办法是借用 IDE 自带的 JBR，再把 Maven 解到任意目录，不动系统环境：
+- 格式：**`<日期+时分>.v<短 sha>`**；当前版本 **`202609231519.v9166254`**（838,483 B）
+- **必须始终大于上游构建号**（上游当前最新为 `1013.v9f83fd83c063`）。Jenkins 按版本号比较：
+  低于上游时，update center 会把官方版当成"有更新"来提示，误点就会把本 fork 的定制覆盖掉
+- 版本号带**时分**：同一天多次重建既不撞号，也不会被判定成版本回退
+- **不要依赖自动计算**：本地（非 CI、无 release tag）时 `git-changelist-maven-extension` 会退化成
+  `999999-SNAPSHOT (private-<sha>-<user>)` —— 数字虽大但带 SNAPSHOT，不适合长期使用
+- 每次重建后建议同步更新本节记录的"当前版本"
+
+### 本机构建（macOS，系统里没有 JDK / Maven 时）
+
+Jenkins 插件需要 **JDK 17+**（本项目使用 **JDK 21**）与 **Maven**。macOS 上没有现成环境时：
 
 ```bash
-# 1) JDK 17+：优先用独立安装的 OpenJDK（本机已装 21）
+# 1) JDK 21：优先用独立安装的 OpenJDK
 export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 export PATH="$JAVA_HOME/bin:$PATH"
 java -version && javac -version
-
-# 备用：机器上没有独立 JDK 时，JetBrains 全家桶自带的 JBR 也是完整 JDK（含 javac）
+# 兜底：机器上没有独立 JDK 时，JetBrains 全家桶自带的 JBR 也是完整 JDK（含 javac）
 # export JAVA_HOME="/Applications/GoLand.app/Contents/jbr/Contents/Home"
 
 # 2) Maven：下载解压到本地目录（示例路径）
@@ -89,28 +102,25 @@ MVN=~/tools/maven/bin/mvn
 # 3) npm 缓存：放到可写目录（npm 默认的 ~/.npm 在某些沙箱/CI 里不可写）
 export npm_config_cache=/tmp/npm-cache
 
-# 4) 构建
-#    版本号用「日期.v<sha>」：既单调递增，又远大于上游的构建号（当前上游 ~1013），
-#    这样 Jenkins 不会把官方新版当成"有更新"来提示、更不会被误升级覆盖掉 fork。
-#    （不传 -Dchangelist 时，本地非 CI、无 release tag 的环境会退化成
-#      "999999-SNAPSHOT (private-…)"，不适合长期使用。）
+# 4) 构建（版本号规则见上一节）
 cd <repo>
-VER="$(date +%Y%m%d%H%M).v$(git rev-parse --short HEAD)"   # 带时分，同一天多次重建也不撞号
+VER="$(date +%Y%m%d%H%M).v$(git rev-parse --short HEAD)"
 $MVN -B -DskipTests -Dexec.skip=true -s /path/to/settings.xml -Dchangelist="$VER" package
 ls -l target/pipeline-graph-view.hpi
 ```
 
-产物版本示例：`Plugin-Version: 202609231452.v<sha>`（`日期+时分.v<sha>`，恒大于上游构建号）、`Jenkins-Version: 2.555.3`。
-`-Dexec.skip=true` 用于跳过 Playwright Chromium 下载（`-DskipTests` 下测试本就不跑）。
+产物 `target/pipeline-graph-view.hpi` 的清单为 `Plugin-Version: <上面的 VER>`、`Jenkins-Version: 2.555.3`。
+`-Dexec.skip=true` 用于跳过 Playwright Chromium 下载（`-DskipTests` 下测试本就不跑；
+将来要跑插件的浏览器测试时，先用代理 `npx playwright install chromium` 预置）。
 
 #### 已验证的构建组合（2026-09-23）
 
 - JDK：OpenJDK **21.0.12.1**（Homebrew，`/usr/libexec/java_home -v 21`）
-- Maven：3.9.9；Node/npm：由 frontend-maven-plugin 2.0.2 自行下载（24.2.0 / 11.3.0）
-- `-DskipTests -Dexec.skip=true`（跳过 Playwright Chromium 下载；`-DskipTests` 下测试本就不跑）
+- Maven：3.9.9；Node/npm 由 frontend-maven-plugin 2.0.2 自行下载（24.2.0 / 11.3.0）
+- 参数：`-DskipTests -Dexec.skip=true`
 - 结果：`BUILD SUCCESS`，产物 `target/pipeline-graph-view.hpi`
-  （`Plugin-Version: 662.ve2c93b4`、`Jenkins-Version: 2.555.3`），
-  且构建内的 `npm mvntest`（prettier + tsc + eslint + vitest）通过
+  （`Plugin-Version: 202609231519.v9166254`、`Jenkins-Version: 2.555.3`），
+  构建内的 `npm mvntest`（prettier + tsc + eslint + vitest）通过
 
 #### 网络：按仓库分流（重要）
 
