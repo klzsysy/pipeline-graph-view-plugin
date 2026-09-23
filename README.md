@@ -26,13 +26,18 @@
   `PipelineConsoleViewAction.LOG_THRESHOLD` 只是请求未带 `startByte` 时的兜底默认值），
   `stepBuffer.startByte > 0` 不再成立，按钮因此不会渲染；后续增量轮询/tail 逻辑不变。
 
-### 2. 控制台字号对齐 Blue Ocean，并去掉 ANSI 粗体
+### 2. 控制台字号与配色对齐 Blue Ocean（深色底），并去掉 ANSI 粗体
 
 - 文件：`src/main/webapp/js/style.css`（静态样式表，`PipelineConsoleViewAction/index.jelly` 直接引用，
   改它不需要动 SCSS/前端构建）
 - 改动：见该文件末尾的"本 fork 定制"注释块
   - 正文 `font-size: 12px; line-height: 16px`、`padding-block: 0`
+  - 深色控制台：`background: #333`（BO 的 `@pre-bg = lighten(#000,20%)`）、正文 `#f5f5f5`
+    （BO `@pre-color`）、行号 `#777`（BO `@gray-light`）；`[role="log"]` 外层一并铺色，
+    避免行间/内边距露出浅色底；`.ansi-fg-0`（主题黑 #333）在深色底上降级为 `#999`
   - `.console-text .ansi-bold { font-weight: normal !important; }`
+
+  注：`ConsoleLine.tsx` 给 `<pre>` 内联了 `background: none`，所以深色背景必须用 `!important` 覆盖。
 - 原因：
   - 上游正文继承 Jenkins core 的 `pre { line-height: 1.66 }`（≈27px/行），行距很空；
     Blue Ocean 是 `1.2rem`（JDL 的 `theme.less` 把 `html` 设为 `62.5%`，即 12px）+ `.log-body p { min-height: 16px }`，
@@ -90,12 +95,12 @@ export npm_config_cache=/tmp/npm-cache
 #    （不传 -Dchangelist 时，本地非 CI、无 release tag 的环境会退化成
 #      "999999-SNAPSHOT (private-…)"，不适合长期使用。）
 cd <repo>
-VER="$(date +%Y%m%d).v$(git rev-parse --short HEAD)"
+VER="$(date +%Y%m%d%H%M).v$(git rev-parse --short HEAD)"   # 带时分，同一天多次重建也不撞号
 $MVN -B -DskipTests -Dexec.skip=true -s /path/to/settings.xml -Dchangelist="$VER" package
 ls -l target/pipeline-graph-view.hpi
 ```
 
-产物版本示例：`Plugin-Version: 20260923.v32ea6d4`、`Jenkins-Version: 2.555.3`。
+产物版本示例：`Plugin-Version: 202609231452.v<sha>`（`日期+时分.v<sha>`，恒大于上游构建号）、`Jenkins-Version: 2.555.3`。
 `-Dexec.skip=true` 用于跳过 Playwright Chromium 下载（`-DskipTests` 下测试本就不跑）。
 
 #### 已验证的构建组合（2026-09-23）

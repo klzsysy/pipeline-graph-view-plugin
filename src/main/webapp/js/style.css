@@ -62,31 +62,47 @@ h1 {
   }
 }
 
-/* 本 fork 定制（两项）：
- *
- * 1) 日志正文字号/行距对齐 Blue Ocean：
+/* 本 fork 定制（三项）：
+
+ * 1) 控制台字号/行距对齐 Blue Ocean：
  *    JDL theme.less: html{font-size:62.5%} → 1rem = 10px；
  *    blueocean-dashboard core.less: .log-body pre{font-size:1.2rem} → 12px，
  *    .log-body p{min-height:16px} → 行高 16px。
- * 2) 去掉 ANSI 粗体：我们的彩色行行首是 \x1b[1;3Xm（bold + 颜色），graph view 的
- *    Ansi.tsx 会把 SGR 1 解析成 .ansi-bold，UI 里显得笨重；这里只保留颜色。
- *    输出端不动，所以终端 less -R / docker logs 仍是高亮色。
+ * 2) 深色控制台背景（同样对齐 Blue Ocean 的观感）：
+ *    @pre-bg = lighten(#000, 20%) = #333，正文 @pre-color = #f5f5f5，行号 @gray-light = #777。
+ *    注意 ConsoleLine.tsx 给 <pre> 内联了 background:none，所以这里必须 !important。
+ * 3) 去掉 ANSI 粗体：我们的彩色行行首是 \x1b[1;38;5;Nm（bold + 颜色），
+ *    界面上只保留颜色；输出端不改，终端 less -R / docker logs 仍是高亮。
  */
 pre.console-output-line {
+  background: #333 !important;
+  color: #f5f5f5 !important;
   font-size: 12px !important;
   line-height: 16px !important;
 }
 div.console-output-line {
   padding-block: 0 !important;
 }
+/* 日志区域外层（ConsoleLogStream 的 <div role="log">，没有 class）也铺成同色，
+ * 这样行与行之间、以及卡片内边距处不会露出浅色底。 */
+[role="log"] {
+  background: #333 !important;
+}
 a.console-line-number {
   margin-right: .5rem !important;
   font-size: 11px !important;
+  color: #777 !important;
 }
 .console-text,
 .console-text div {
   line-height: inherit;
+  color: inherit;
 }
 .console-text .ansi-bold {
   font-weight: normal !important;
+}
+/* 深色底上 ansi-fg-0（主题里的黑 #333）会看不见，降级成中灰；
+ * 其余 0-15 主题色在 #333 上仍然可读。我们自己的 spec 配色走 256 色，不受影响。 */
+.console-text .ansi-fg-0 {
+  color: #999 !important;
 }
