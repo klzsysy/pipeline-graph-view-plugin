@@ -1,8 +1,7 @@
-import linkifyHtml from "linkify-html";
 import { memo } from "react";
 
 import { BuildStep } from "../../../common/RestClient.tsx";
-import { linkifyJsOptions } from "../../../common/utils/linkify-js.ts";
+import { linkifyConsoleText } from "../../../common/utils/linkify-js.ts";
 import { makeReactChildren, tokenizeANSIString } from "./Ansi.tsx";
 
 export interface ConsoleLineProps {
@@ -56,7 +55,7 @@ export const ConsoleLine = memo(function ConsoleLine(props: ConsoleLineProps) {
         </a>
         <div className="console-text">
           {makeReactChildren(
-            tokenizeANSIString(linkifyHtml(content, linkifyJsOptions)),
+            tokenizeANSIString(linkifyConsoleText(content)),
             id,
           )}
         </div>

@@ -383,10 +383,16 @@ export function makeReactChildren(
           classNames.push("ansi-strikethrough");
         }
 
+        // 用 dangerouslySetInnerHTML 而不是子节点：进入这里的文本已经过
+        // linkify（HTML 形式，含 &gt; 等实体和 <a> 链接），按子节点渲染会把实体
+        // 原样显示成 "=&gt;"，链接也不会生效。
         result.push(
-          <span className={classNames.join(" ")} style={style}>
-            {codeOrString}
-          </span>,
+          <span
+            key={`${key}-${i}`}
+            className={classNames.join(" ")}
+            style={style}
+            dangerouslySetInnerHTML={{ __html: codeOrString }}
+          />,
         );
       }
     } else if (codeOrString.isSelectGraphicRendition) {

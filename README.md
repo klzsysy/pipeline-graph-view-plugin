@@ -11,8 +11,8 @@
 
 ## Fork 定制内容（klzsysy fork）
 
-> 这是一个 fork，在上游基础上加了三处我们自己的 Jenkins 需要的改动。上游仓库：
-> <https://github.com/jenkinsci/pipeline-graph-view-plugin>。三处改动都集中在 3 个源文件 + 1 个测试文件，
+> 这是一个 fork，在上游基础上加了四处我们自己的 Jenkins 需要的改动。上游仓库：
+> <https://github.com/jenkinsci/pipeline-graph-view-plugin>。四处改动集中在 4 个源文件 + 1 个测试文件，
 > 升级上游时按同样思路重放即可（见文末"与上游同步"）。
 
 ### 1. 打开步骤即加载全量日志（不再出现 "There's more to see"）
@@ -60,6 +60,22 @@
     不再吃掉同一转义序列里后续的属性（`1;38;5;208` 的粗体仍生效）
 - 原因：上游只处理 `30-37 / 40-47 / 90-97 / 100-107`。CI 里 docker/buildkit、`go test` 等第三方输出
   大量使用 256 色，之前会渲染成错误颜色甚至整行变底色块；我们自己的 e2e 日志也用 256 色区分并发用例。
+
+### 4. 修复 linkify 引入的 HTML 实体显示问题（`=&gt;`）
+
+- 文件：`src/main/frontend/common/utils/linkify-js.ts`、`.../pipeline-console/main/ConsoleLine.tsx`、
+  `.../pipeline-console/main/Ansi.tsx`
+- 现象：日志里的 `30080 => 30080` 在界面上显示成 `30080 =&gt; 30080`（带 ANSI 颜色的行必现）。
+- 根因：上游用 `linkify-html` 处理日志文本，而它的入参是 **HTML** —— 直接把纯文本喂进去，
+  `>` 会被转义成 `&gt;`、`<` 会被当成标签（`a < b & c` 甚至会被吞掉）。纯文本分支用
+  `dangerouslySetInnerHTML` 渲染，实体还能被解码；而**彩色分支用的是 React 子节点**，
+  实体就被原样显示出来了。
+- 修复：
+  1. 新增 `escapeHtml()` + `linkifyConsoleText()`：先把纯文本转义，再交给 `linkify-html`
+     （这才是它的正确用法，URL 仍会变成链接）；
+  2. `Ansi.tsx` 的彩色 span 也改用 `dangerouslySetInnerHTML` 渲染（实体能解码、链接能生效）。
+- 回归测试：`Ansi.spec.tsx` 里新增 3 个 jsdom 渲染用例，分别覆盖彩色行的 `=>`/`<`、
+  纯文本行的 `<`/`&`、以及 URL 仍然是链接。
 
 ### 构建与安装
 

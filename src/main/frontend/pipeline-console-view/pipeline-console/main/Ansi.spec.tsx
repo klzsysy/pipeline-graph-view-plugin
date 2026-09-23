@@ -1,5 +1,9 @@
+/** @vitest-environment jsdom */
+
+import { render } from "@testing-library/react";
 import type { CSSProperties, ReactElement } from "react";
 
+import { linkifyConsoleText } from "../../../common/utils/linkify-js.ts";
 import {
   makeReactChildren,
   palette256ToRgb,
@@ -114,5 +118,57 @@ describe("makeReactChildren", () => {
 
     expect(children[0].props.className).toBe("ansi-fg-6");
     expect(children[0].props.style?.color).toBeUndefined();
+  });
+});
+
+describe("console text with HTML entities", () => {
+  it("renders => and < correctly inside ANSI coloured text", () => {
+    const { container } = render(
+      <>
+        {makeReactChildren(
+          tokenizeANSIString(
+            linkifyConsoleText(
+              "\u001b[38;5;36m30080 => 30080 < 40000\u001b[0m",
+            ),
+          ),
+          "key",
+        )}
+      </>,
+    );
+
+    // 回归：linkify-html 会把 ">" 转义成 "&gt;"，彩色 span 以前用子节点渲染，
+    // 于是界面上直接显示成 "=&gt;"。
+    expect(container.textContent).toBe("30080 => 30080 < 40000");
+  });
+
+  it("renders plain (non coloured) text correctly", () => {
+    const { container } = render(
+      <>
+        {makeReactChildren(
+          tokenizeANSIString(linkifyConsoleText("a < b & c")),
+          "key",
+        )}
+      </>,
+    );
+
+    expect(container.textContent).toBe("a < b & c");
+  });
+
+  it("keeps linkified URLs as links", () => {
+    const { container } = render(
+      <>
+        {makeReactChildren(
+          tokenizeANSIString(
+            linkifyConsoleText("see https://example.com/x now"),
+          ),
+          "key",
+        )}
+      </>,
+    );
+
+    expect(container.querySelector("a")?.getAttribute("href")).toBe(
+      "https://example.com/x",
+    );
+    expect(container.textContent).toBe("see https://example.com/x now");
   });
 });
