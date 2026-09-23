@@ -35,6 +35,10 @@
   - 深色控制台：`background: #333`（BO 的 `@pre-bg = lighten(#000,20%)`）、正文 `#f5f5f5`
     （BO `@pre-color`）、行号 `#777`（BO `@gray-light`）；`[role="log"]` 外层一并铺色，
     避免行间/内边距露出浅色底；`.ansi-fg-0`（主题黑 #333）在深色底上降级为 `#999`
+  - 字体与字重也对齐 BO：`font-family: "Source Code Pro", Menlo, Monaco, Consolas,
+    "Courier New", monospace`（BO 的 `@font-family-monospace`）、`font-weight: 400`，
+    并加上 BO 同款的 `-webkit-font-smoothing: antialiased` /
+    `-moz-osx-font-smoothing: grayscale`（macOS 上字形明显更细，默认渲染会偏粗）
   - `.console-text .ansi-bold { font-weight: normal !important; }`
 
   注：`ConsoleLine.tsx` 给 `<pre>` 内联了 `background: none`，所以深色背景必须用 `!important` 覆盖。
