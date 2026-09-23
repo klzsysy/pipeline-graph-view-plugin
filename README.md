@@ -32,9 +32,11 @@
   改它不需要动 SCSS/前端构建）
 - 改动：见该文件末尾的"本 fork 定制"注释块
   - 正文 `font-size: 12px; line-height: 16px`、`padding-block: 0`
-  - 深色控制台：`background: #333`（BO 的 `@pre-bg = lighten(#000,20%)`）、正文 `#f5f5f5`
-    （BO `@pre-color`）、行号 `#777`（BO `@gray-light`）；`[role="log"]` 外层一并铺色，
-    避免行间/内边距露出浅色底；`.ansi-fg-0`（主题黑 #333）在深色底上降级为 `#999`
+  - 深色控制台：`background: #1f1f1f`（BO 的 `@pre-bg` 是 `lighten(#000,20%)` = `#333`，
+    实测对比度不够，再压深一档）、正文 `#f5f5f5`（BO `@pre-color`）、行号 `#777`
+    （BO `@gray-light`）；`[role="log"]` 外层一并铺色，避免行间/内边距露出浅色底；
+    `.ansi-fg-0`（主题黑 #333）在深色底上降级为 `#999`；想更黑直接改这几个色值
+    （如 `#141414`、`#000`）
   - 字体与字重也对齐 BO：`font-family: "Source Code Pro", Menlo, Monaco, Consolas,
     "Courier New", monospace`（BO 的 `@font-family-monospace`）、`font-weight: 400`，
     并加上 BO 同款的 `-webkit-font-smoothing: antialiased` /

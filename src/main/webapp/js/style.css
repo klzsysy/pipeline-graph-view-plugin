@@ -68,14 +68,15 @@ h1 {
  *    JDL theme.less: html{font-size:62.5%} → 1rem = 10px；
  *    blueocean-dashboard core.less: .log-body pre{font-size:1.2rem} → 12px，
  *    .log-body p{min-height:16px} → 行高 16px。
- * 2) 深色控制台背景（同样对齐 Blue Ocean 的观感）：
- *    @pre-bg = lighten(#000, 20%) = #333，正文 @pre-color = #f5f5f5，行号 @gray-light = #777。
+ * 2) 深色控制台背景：起点是 Blue Ocean 的 @pre-bg = lighten(#000, 20%) = #333，
+ *    实测对比度不够，再压深一档到 #1f1f1f；正文 #f5f5f5、行号 #777 沿用 BO。
+ *    （#1f1f1f 上正文对比度约 14.8:1；想更黑可直接改这三个色值，如 #141414 / #000）
  *    注意 ConsoleLine.tsx 给 <pre> 内联了 background:none，所以这里必须 !important。
  * 3) 去掉 ANSI 粗体：我们的彩色行行首是 \x1b[1;38;5;Nm（bold + 颜色），
  *    界面上只保留颜色；输出端不改，终端 less -R / docker logs 仍是高亮。
  */
 pre.console-output-line {
-  background: #333 !important;
+  background: #1f1f1f !important;
   color: #f5f5f5 !important;
   /* 字体/字重/渲染方式对齐 Blue Ocean：BO 的 @font-family-monospace +
    * JDL theme.less 的 -webkit-font-smoothing: antialiased（macOS 上明显更细） */
@@ -92,7 +93,7 @@ div.console-output-line {
 /* 日志区域外层（ConsoleLogStream 的 <div role="log">，没有 class）也铺成同色，
  * 这样行与行之间、以及卡片内边距处不会露出浅色底。 */
 [role="log"] {
-  background: #333 !important;
+  background: #1f1f1f !important;
 }
 a.console-line-number {
   margin-right: .5rem !important;
