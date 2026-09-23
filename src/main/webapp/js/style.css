@@ -61,3 +61,32 @@ h1 {
     grid-area: 2 / 2;
   }
 }
+
+/* 本 fork 定制（两项）：
+ *
+ * 1) 日志正文字号/行距对齐 Blue Ocean：
+ *    JDL theme.less: html{font-size:62.5%} → 1rem = 10px；
+ *    blueocean-dashboard core.less: .log-body pre{font-size:1.2rem} → 12px，
+ *    .log-body p{min-height:16px} → 行高 16px。
+ * 2) 去掉 ANSI 粗体：我们的彩色行行首是 \x1b[1;3Xm（bold + 颜色），graph view 的
+ *    Ansi.tsx 会把 SGR 1 解析成 .ansi-bold，UI 里显得笨重；这里只保留颜色。
+ *    输出端不动，所以终端 less -R / docker logs 仍是高亮色。
+ */
+pre.console-output-line {
+  font-size: 12px !important;
+  line-height: 16px !important;
+}
+div.console-output-line {
+  padding-block: 0 !important;
+}
+a.console-line-number {
+  margin-right: .5rem !important;
+  font-size: 11px !important;
+}
+.console-text,
+.console-text div {
+  line-height: inherit;
+}
+.console-text .ansi-bold {
+  font-weight: normal !important;
+}

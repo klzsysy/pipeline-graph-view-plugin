@@ -1,8 +1,18 @@
+import type { CSSProperties } from "react";
+
+export interface Rgb {
+  r: number;
+  g: number;
+  b: number;
+}
+
 export interface Result {
   isSelectGraphicRendition?: boolean;
   escapeCode?: string; // input
-  setFG?: number | false; // 0-7 if a foreground color is specified
-  setBG?: number | false; // 0-7 if a background color is specified
+  setFG?: number | false; // 0-15 if a foreground color is specified
+  setBG?: number | false; // 0-15 if a background color is specified
+  setFGRgb?: Rgb | false; // rgb if a 256-color / truecolor foreground is specified
+  setBGRgb?: Rgb | false; // rgb if a 256-color / truecolor background is specified
   resetFG?: boolean; // true if contains a reset back to default foreground
   resetBG?: boolean; // true if contains a reset back to default background
   setBold?: boolean; // true if contains a bold font style
@@ -10,6 +20,35 @@ export interface Result {
   setItalic?: boolean; // true if contains an italic font style
   setUnderline?: boolean; // true if contains an underline font style
   setStrikeThrough?: boolean; // true if contains a strike-through font style
+}
+
+/**
+ * Convert an xterm 256-color palette index into rgb.
+ *
+ * Indexes 0-15 are deliberately `undefined`: those are the theme colors that the
+ * `ansi-fg-N` / `ansi-bg-N` classes already render (and which follow the light /
+ * dark Jenkins theme), so callers should keep using the classes for them.
+ */
+export function palette256ToRgb(index: number): Rgb | undefined {
+  if (!Number.isInteger(index) || index < 0 || index > 255) {
+    return undefined;
+  }
+  if (index < 16) {
+    return undefined;
+  }
+  if (index < 232) {
+    // 6x6x6 color cube
+    const steps = [0, 95, 135, 175, 215, 255];
+    const offset = index - 16;
+    return {
+      r: steps[Math.floor(offset / 36)],
+      g: steps[Math.floor(offset / 6) % 6],
+      b: steps[offset % 6],
+    };
+  }
+  // 24 step gray ramp
+  const value = 8 + (index - 232) * 10;
+  return { r: value, g: value, b: value };
 }
 
 /**
@@ -54,6 +93,8 @@ export function parseEscapeCode(escapeCode: string): Result {
     result.isSelectGraphicRendition = true;
     result.setFG = false;
     result.setBG = false;
+    result.setFGRgb = false;
+    result.setBGRgb = false;
     result.resetFG = false;
     result.resetBG = false;
 
@@ -63,15 +104,65 @@ export function parseEscapeCode(escapeCode: string): Result {
       .map((str) => parseInt(str || "0"));
 
     // Now go through the ints, decode them into bg/fg info
-    for (const num of params) {
+    for (let i = 0; i < params.length; i++) {
+      const num = params[i];
+
+      if (num === 38 || num === 48) {
+        // Extended colors: 38;5;N (256 colors) and 38;2;R;G;B (truecolor), same for 48/background.
+        const isForeground = num === 38;
+        const mode = params[i + 1];
+
+        if (mode === 5 && i + 2 < params.length) {
+          const index = params[i + 2];
+          const rgb = palette256ToRgb(index);
+          if (isForeground) {
+            result.setFGRgb = rgb ?? false;
+            result.setFG = rgb ? false : index; // 0-15 keep using the theme classes
+            result.resetFG = false;
+          } else {
+            result.setBGRgb = rgb ?? false;
+            result.setBG = rgb ? false : index;
+            result.resetBG = false;
+          }
+          i += 2;
+          continue;
+        }
+
+        if (mode === 2 && i + 4 < params.length) {
+          const rgb: Rgb = {
+            r: params[i + 2],
+            g: params[i + 3],
+            b: params[i + 4],
+          };
+          if (isForeground) {
+            result.setFGRgb = rgb;
+            result.setFG = false;
+            result.resetFG = false;
+          } else {
+            result.setBGRgb = rgb;
+            result.setBG = false;
+            result.resetBG = false;
+          }
+          i += 4;
+          continue;
+        }
+
+        // Malformed extended color (e.g. a bare "38"): ignore just this code.
+        continue;
+      }
+
       if (num >= 30 && num <= 37) {
         result.setFG = num - 30; // Normal FG set
+        result.setFGRgb = false;
       } else if (num >= 40 && num <= 47) {
         result.setBG = num - 40; // Normal BG set
+        result.setBGRgb = false;
       } else if (num >= 90 && num <= 97) {
         result.setFG = num - 90 + 8; // Bright FG set
+        result.setFGRgb = false;
       } else if (num >= 100 && num <= 107) {
         result.setBG = num - 100 + 8; // Bright BG set
+        result.setBGRgb = false;
       } else if (num === 1) {
         result.setBold = true;
       } else if (num === 2) {
@@ -95,11 +186,13 @@ export function parseEscapeCode(escapeCode: string): Result {
         if (num === 39 || num === 0) {
           result.resetFG = true;
           result.setFG = false;
+          result.setFGRgb = false;
         }
 
         if (num === 49 || num === 0) {
           result.resetBG = true;
           result.setBG = false;
+          result.setBGRgb = false;
         }
 
         // ANSI code 0 should reset all formatting attributes
@@ -242,6 +335,8 @@ export function makeReactChildren(
       if (
         !currentState.setFG &&
         !currentState.setBG &&
+        !currentState.setFGRgb &&
+        !currentState.setBGRgb &&
         !currentState.setBold &&
         !currentState.setFaint &&
         !currentState.setItalic &&
@@ -256,12 +351,21 @@ export function makeReactChildren(
         );
       } else {
         const classNames = [];
+        const style: CSSProperties = {};
 
         if (typeof currentState.setFG === "number") {
           classNames.push(`ansi-fg-${currentState.setFG}`);
         }
         if (typeof currentState.setBG === "number") {
           classNames.push(`ansi-bg-${currentState.setBG}`);
+        }
+        if (currentState.setFGRgb) {
+          const { r, g, b } = currentState.setFGRgb;
+          style.color = `rgb(${r}, ${g}, ${b})`;
+        }
+        if (currentState.setBGRgb) {
+          const { r, g, b } = currentState.setBGRgb;
+          style.background = `rgb(${r}, ${g}, ${b})`;
         }
         if (currentState.setBold) {
           classNames.push("ansi-bold");
@@ -280,7 +384,9 @@ export function makeReactChildren(
         }
 
         result.push(
-          <span className={classNames.join(" ")}>{codeOrString}</span>,
+          <span className={classNames.join(" ")} style={style}>
+            {codeOrString}
+          </span>,
         );
       }
     } else if (codeOrString.isSelectGraphicRendition) {
@@ -289,16 +395,27 @@ export function makeReactChildren(
 
       if (codeOrString.resetFG) {
         nextState.setFG = false;
+        nextState.setFGRgb = false;
       }
       if (codeOrString.resetBG) {
         nextState.setBG = false;
+        nextState.setBGRgb = false;
       }
 
-      if (typeof codeOrString.setFG === "number") {
+      if (typeof codeOrString.setFGRgb === "object" && codeOrString.setFGRgb) {
+        nextState.setFGRgb = codeOrString.setFGRgb;
+        nextState.setFG = false;
+      } else if (typeof codeOrString.setFG === "number") {
         nextState.setFG = codeOrString.setFG;
+        nextState.setFGRgb = false;
       }
-      if (typeof codeOrString.setBG === "number") {
+
+      if (typeof codeOrString.setBGRgb === "object" && codeOrString.setBGRgb) {
+        nextState.setBGRgb = codeOrString.setBGRgb;
+        nextState.setBG = false;
+      } else if (typeof codeOrString.setBG === "number") {
         nextState.setBG = codeOrString.setBG;
+        nextState.setBGRgb = false;
       }
 
       if (codeOrString.setBold !== undefined) {
