@@ -61,6 +61,68 @@ mvn -DskipTests package     # 需要 JDK 17+ 与 Maven；产物：target/pipelin
 Jenkins → Manage Jenkins → Plugins → Advanced settings → **Deploy Plugin** 上传该 HPI，
 然后**硬刷新浏览器**（Cmd/Ctrl+Shift+R），否则旧的前端 bundle 还在缓存里。
 
+### 本机构建（macOS，系统里没有 JDK 17+ / Maven 时）
+
+Jenkins 插件需要 **JDK 17+** 与 **Maven**（本机系统自带的 `java` 可能是 1.8）。
+macOS 上最省事的办法是借用 IDE 自带的 JBR，再把 Maven 解到任意目录，不动系统环境：
+
+```bash
+# 1) JDK：JetBrains 全家桶自带的 JBR 就是完整 JDK（含 javac）
+export JAVA_HOME="/Applications/GoLand.app/Contents/jbr/Contents/Home"
+export PATH="$JAVA_HOME/bin:$PATH"
+
+# 2) Maven：下载解压到本地目录（示例路径）
+curl -sSL -o /tmp/maven.tar.gz \
+  https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz
+mkdir -p ~/tools/maven && tar xzf /tmp/maven.tar.gz -C ~/tools/maven --strip-components=1
+MVN=~/tools/maven/bin/mvn
+
+# 3) npm 缓存：放到可写目录（npm 默认的 ~/.npm 在某些沙箱/CI 里不可写）
+export npm_config_cache=/tmp/npm-cache
+
+# 4) 构建
+cd <repo>
+$MVN -B -DskipTests -Dchangelist=662.v$(git rev-parse --short HEAD) package
+ls -l target/pipeline-graph-view.hpi
+```
+
+#### 网络：按仓库分流（重要）
+
+`repo.jenkins-ci.org` 的产物会 302 到 S3，直连往往只有十几 KB/s，走代理可以快两个数量级；
+而 Maven Central / nodejs.org / registry.npmjs.org 通常是直连更快（甚至代理不通）。
+可以放一个 `settings.xml`，用 `nonProxyHosts` 把"快的仓库"排除在代理之外：
+
+```xml
+<settings>
+  <proxies>
+    <proxy>
+      <id>local-http</id><active>true</active><protocol>http</protocol>
+      <host>127.0.0.1</host><port>1080</port>
+      <nonProxyHosts>repo.maven.apache.org|repo1.maven.org|nodejs.org|registry.npmjs.org|localhost|127.0.0.1</nonProxyHosts>
+    </proxy>
+    <proxy>
+      <id>local-https</id><active>true</active><protocol>https</protocol>
+      <host>127.0.0.1</host><port>1080</port>
+      <nonProxyHosts>repo.maven.apache.org|repo1.maven.org|nodejs.org|registry.npmjs.org|localhost|127.0.0.1</nonProxyHosts>
+    </proxy>
+  </proxies>
+</settings>
+```
+
+```bash
+$MVN -B -s /path/to/settings.xml -DskipTests -Dchangelist=... package
+```
+
+两个已知坑（网络差时才会遇到）：
+
+- `org.jenkins-ci.main:jenkins-war`（约 90MB，test scope）走代理可能中途断握手：
+  用 `curl -x http://127.0.0.1:1080 -C -` 断点续传下好，放进本地仓库对应目录，并把
+  `jenkins-war-<ver>.war>repo.jenkins-ci.org=` 补进同目录的 `_remote.repositories`。
+- frontend-maven-plugin 会从 `repo.jenkins-ci.org/nodejs-dist|npm-dist` 拉 Node/npm，
+  该路径有时会卡在 0 字节：直接从官方源预置到本地仓库缓存目录即可
+  （`.../com/github/eirslett/node/<ver>/node-v<ver>-<platform>.tar.gz`、
+  `.../com/github/eirslett/npm/<ver>/npm-<ver>.tar.gz`）。
+
 ### 与上游同步
 
 ```bash
