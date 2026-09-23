@@ -67,9 +67,13 @@ Jenkins 插件需要 **JDK 17+** 与 **Maven**（本机系统自带的 `java` �
 macOS 上最省事的办法是借用 IDE 自带的 JBR，再把 Maven 解到任意目录，不动系统环境：
 
 ```bash
-# 1) JDK：JetBrains 全家桶自带的 JBR 就是完整 JDK（含 javac）
-export JAVA_HOME="/Applications/GoLand.app/Contents/jbr/Contents/Home"
+# 1) JDK 17+：优先用独立安装的 OpenJDK（本机已装 21）
+export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 export PATH="$JAVA_HOME/bin:$PATH"
+java -version && javac -version
+
+# 备用：机器上没有独立 JDK 时，JetBrains 全家桶自带的 JBR 也是完整 JDK（含 javac）
+# export JAVA_HOME="/Applications/GoLand.app/Contents/jbr/Contents/Home"
 
 # 2) Maven：下载解压到本地目录（示例路径）
 curl -sSL -o /tmp/maven.tar.gz \
@@ -85,6 +89,15 @@ cd <repo>
 $MVN -B -DskipTests -Dchangelist=662.v$(git rev-parse --short HEAD) package
 ls -l target/pipeline-graph-view.hpi
 ```
+
+#### 已验证的构建组合（2026-09-23）
+
+- JDK：OpenJDK **21.0.12.1**（Homebrew，`/usr/libexec/java_home -v 21`）
+- Maven：3.9.9；Node/npm：由 frontend-maven-plugin 2.0.2 自行下载（24.2.0 / 11.3.0）
+- `-DskipTests -Dexec.skip=true`（跳过 Playwright Chromium 下载；`-DskipTests` 下测试本就不跑）
+- 结果：`BUILD SUCCESS`，产物 `target/pipeline-graph-view.hpi`
+  （`Plugin-Version: 662.ve2c93b4`、`Jenkins-Version: 2.555.3`），
+  且构建内的 `npm mvntest`（prettier + tsc + eslint + vitest）通过
 
 #### 网络：按仓库分流（重要）
 
