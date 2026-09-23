@@ -72,12 +72,16 @@
   `>` 会被转义成 `&gt;`、`<` 会被当成标签（`a < b & c` 甚至会被吞掉）。纯文本分支用
   `dangerouslySetInnerHTML` 渲染，实体还能被解码；而**彩色分支用的是 React 子节点**，
   实体就被原样显示出来了。
+- 另一个相关现象：`RUN_TESTS_DISPLAY_URL` / `RUN_CHANGES_DISPLAY_URL` 这类环境变量的**值本身
+  就是 Jenkins 注入的 `<a href='…'>…</a>`**（`env` 会原样打印），Graph View 里应当按链接渲染
+  （Blue Ocean 就是这么做的）。只做转义会把它们变成可见文本 `<a href=…>`。
 - 修复：
-  1. 新增 `escapeHtml()` + `linkifyConsoleText()`：先把纯文本转义，再交给 `linkify-html`
-     （这才是它的正确用法，URL 仍会变成链接）；
-  2. `Ansi.tsx` 的彩色 span 也改用 `dangerouslySetInnerHTML` 渲染（实体能解码、链接能生效）。
-- 回归测试：`Ansi.spec.tsx` 里新增 3 个 jsdom 渲染用例，分别覆盖彩色行的 `=>`/`<`、
-  纯文本行的 `<`/`&`、以及 URL 仍然是链接。
+  1. 新增 `linkifyConsoleText()`：**先摘出 Jenkins 注入的 `<a>` 片段并原样保留**，其余纯文本先做
+     HTML 转义，最后交给 `linkify-html`（URL 仍会变成链接）；`ConsoleLine.tsx` 改用它。
+  2. `Ansi.tsx` 的彩色 span 也改用 `dangerouslySetInnerHTML` 渲染（实体能解码、链接能生效），
+     并补上 React key。
+- 回归测试：`Ansi.spec.tsx` 里新增 4 个 jsdom 渲染用例 —— 彩色行的 `=>`/`<`、纯文本行的
+  `<`/`&`、Jenkins 锚点仍是真链接（且不显示 `<a href` 文本）、URL 仍然是链接。
 
 ### 构建与安装
 

@@ -154,6 +154,30 @@ describe("console text with HTML entities", () => {
     expect(container.textContent).toBe("a < b & c");
   });
 
+  it("keeps the HTML anchors Jenkins puts into env vars as real links", () => {
+    const line =
+      "RUN_TESTS_DISPLAY_URL=<a href='https://jenkins.example/job/x/9/display/redirect?page=tests'>https://jenkins.example/job/x/9/display/redirect?page=tests</a>";
+    const { container } = render(
+      <>
+        {makeReactChildren(
+          tokenizeANSIString(
+            linkifyConsoleText("\u001b[38;5;36m" + line + "\u001b[0m"),
+          ),
+          "key",
+        )}
+      </>,
+    );
+
+    // 回归：上一版把 Jenkins 注入的锚点也转义了，界面上直接显示成 "<a href=...>"
+    expect(container.textContent).not.toContain("<a href");
+    expect(container.textContent).toBe(
+      "RUN_TESTS_DISPLAY_URL=https://jenkins.example/job/x/9/display/redirect?page=tests",
+    );
+    expect(container.querySelector("a")?.getAttribute("href")).toBe(
+      "https://jenkins.example/job/x/9/display/redirect?page=tests",
+    );
+  });
+
   it("keeps linkified URLs as links", () => {
     const { container } = render(
       <>
