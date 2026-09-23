@@ -85,10 +85,18 @@ MVN=~/tools/maven/bin/mvn
 export npm_config_cache=/tmp/npm-cache
 
 # 4) 构建
+#    版本号用「日期.v<sha>」：既单调递增，又远大于上游的构建号（当前上游 ~1013），
+#    这样 Jenkins 不会把官方新版当成"有更新"来提示、更不会被误升级覆盖掉 fork。
+#    （不传 -Dchangelist 时，本地非 CI、无 release tag 的环境会退化成
+#      "999999-SNAPSHOT (private-…)"，不适合长期使用。）
 cd <repo>
-$MVN -B -DskipTests -Dchangelist=662.v$(git rev-parse --short HEAD) package
+VER="$(date +%Y%m%d).v$(git rev-parse --short HEAD)"
+$MVN -B -DskipTests -Dexec.skip=true -s /path/to/settings.xml -Dchangelist="$VER" package
 ls -l target/pipeline-graph-view.hpi
 ```
+
+产物版本示例：`Plugin-Version: 20260923.v32ea6d4`、`Jenkins-Version: 2.555.3`。
+`-Dexec.skip=true` 用于跳过 Playwright Chromium 下载（`-DskipTests` 下测试本就不跑）。
 
 #### 已验证的构建组合（2026-09-23）
 
