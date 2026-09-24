@@ -96,11 +96,19 @@
   `<a href="https://host:port` 渲染成一个空链接，后一半 `" rel="…">https://host:port` 变成
   可见文本。片段里那个残留的 `">` 就是锚点标签的尾巴。JSON 里没有这个现象，是因为 URL 后面
   跟的是 `"}` 而不是 escape。
-- 修复：`linkifyConsoleText()` 改为**先按 CSI escape 序列切开**，逐段做"保留 Jenkins 锚点 +
-  转义 + linkify"，最后拼回。escape 永远不会进入 linkify 的输入，锚点也就不会被撕开。
-- 回归测试：`Ansi.spec.tsx` 新增用例（彩色行 + 行尾 URL + reset）：断言 `a[href]` 恰好是
-  干净的 URL、文本里不出现 `rel=`、`">` 和 ESC 字节。旧实现下该用例失败
-  （`querySelector("a")` 为 null，锚点根本没能成形）。
+- 修复（两处，都是同一个毛病）：
+  1. `linkifyConsoleText()` 先按 CSI escape 序列切开，逐段做"保留 Jenkins 锚点 + 转义 + linkify"
+     再拼回 —— 我们自己 linkify 出来的锚点不会再吞掉行尾 escape；
+  2. 更关键的一处：Jenkins 的 `logText/progressiveHtml` **在服务端就已经把裸 URL 变成了锚点**，
+     并且同样把紧跟 URL 的 reset 吞进了 `href` 与链接文本：
+     `<a href='https://host:port\u001b[0m'>https://host:port\u001b[0m</a>`。
+     客户端拿到的就是这种"坏锚点"，所以 `linkifyConsoleText()` 还要先把锚点**内部**的 escape
+     摘出来挪到锚点之后（`detachEscapesFromAnchors`）：href 变成干净的 URL，reset 仍然作用在
+     行尾，`tokenizeANSIString` 不会再把锚点切成两半。
+- 回归测试：`Ansi.spec.tsx` 两个用例 —— ① 彩色行 + 行尾 URL + reset（客户端 linkify 路径）；
+  ② **Jenkins progressiveHtml 的真实片段**（服务端已 linkify、escape 在 href 里）。
+  都断言 `a[href]` 恰好是干净 URL、文本里不出现 `rel=` / `'>` / ESC 字节；
+  旧实现下两个用例都失败（① `querySelector("a")` 为 null，② URL 前后还挂着标签碎片）。
 
 ### 构建与安装
 

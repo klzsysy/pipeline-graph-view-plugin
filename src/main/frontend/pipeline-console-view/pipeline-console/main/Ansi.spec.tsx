@@ -201,6 +201,34 @@ describe("console text with HTML entities", () => {
     expect(container.textContent).not.toContain("\u001b");
   });
 
+  it("repairs the anchors Jenkins' HTML log view linkified (escape inside href)", () => {
+    // 回归：Jenkins 的 logText/progressiveHtml 会自己把裸 URL 变成锚点，并把紧跟 URL 的
+    // ANSI reset 一起吞进 href 与链接文本：
+    //   <a href='https://host:port\u001b[0m'>https://host:port\u001b[0m</a>
+    // tokenizeANSIString 正是从 escape 处切开，锚点会被撕成两半，界面上剩下 "'>https://…"。
+    const content =
+      "\u001b[1;38;5;136mINFO:  [...] --core-extend-env " +
+      "SKS_FILE_SERVER_URL=<a href='https://10.255.0.24:30443\u001b[0m'>" +
+      "https://10.255.0.24:30443\u001b[0m</a>";
+    const { container } = render(
+      <>
+        {makeReactChildren(
+          tokenizeANSIString(linkifyConsoleText(content)),
+          "key",
+        )}
+      </>,
+    );
+
+    const link = container.querySelector("a");
+    expect(link?.getAttribute("href")).toBe("https://10.255.0.24:30443");
+    expect(container.textContent).toContain(
+      "SKS_FILE_SERVER_URL=https://10.255.0.24:30443",
+    );
+    expect(container.textContent).not.toContain("<a href");
+    expect(container.textContent).not.toContain("'>");
+    expect(container.textContent).not.toContain("\u001b");
+  });
+
   it("keeps linkified URLs as links", () => {
     const { container } = render(
       <>
