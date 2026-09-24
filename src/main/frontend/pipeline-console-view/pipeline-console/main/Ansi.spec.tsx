@@ -178,6 +178,29 @@ describe("console text with HTML entities", () => {
     );
   });
 
+  it("does not let a trailing ANSI reset be swallowed into the URL", () => {
+    // 回归：e2e 日志整行着色，URL 后面紧跟 \x1b[0m。linkify 会把 escape 当成 URL 的
+    // 一部分，于是锚点变成 <a href="https://…\x1b[0m">，而 tokenizeANSIString 正是从
+    // escape 处切开 —— 界面上剩下 `">https://…`，链接的 href 里还带着 ESC 字节。
+    const line =
+      "\u001b[1;38;5;136mINFO:  [...] Run ksctl to install SKS: ... --core-extend-env SKS_FILE_SERVER_URL=https://192.168.27.13:30443\u001b[0m";
+    const { container } = render(
+      <>
+        {makeReactChildren(tokenizeANSIString(linkifyConsoleText(line)), "key")}
+      </>,
+    );
+
+    const link = container.querySelector("a");
+    expect(link?.getAttribute("href")).toBe("https://192.168.27.13:30443");
+    expect(container.textContent).toContain(
+      "SKS_FILE_SERVER_URL=https://192.168.27.13:30443",
+    );
+    // 不该出现属性残留或转义后的 markup
+    expect(container.textContent).not.toContain("rel=");
+    expect(container.textContent).not.toContain('">');
+    expect(container.textContent).not.toContain("\u001b");
+  });
+
   it("keeps linkified URLs as links", () => {
     const { container } = render(
       <>

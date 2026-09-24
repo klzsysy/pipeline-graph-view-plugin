@@ -33,13 +33,14 @@ export function escapeHtml(text: string): string {
 const ANCHOR_PATTERN = /<a\s[^>]*>[\s\S]*?<\/a>/gi;
 
 /**
- * Linkify a console line.
- *
- * Jenkins log lines are a mix of plain text (`2>&1`, `a < b`, `=>`) and HTML
- * fragments (the `RUN_*_DISPLAY_URL` anchors), so: keep the anchors as-is, escape
- * everything else, then let linkify turn bare URLs into links.
+ * A CSI escape sequence, i.e. what `tokenizeANSIString` treats as a style code.
+ * Deliberately the same shape as that tokenizer's scan: anything it cuts out must
+ * never reach linkify.
  */
-export function linkifyConsoleText(text: string): string {
+const ANSI_ESCAPE_PATTERN = /\u001b\[[0-9;?]*[ -/]*[@-~]/;
+
+/** Linkify one ANSI-free segment: keep Jenkins anchors, escape the rest, link URLs. */
+function linkifySegment(text: string): string {
   const parts: string[] = [];
   let cursor = 0;
 
@@ -54,4 +55,34 @@ export function linkifyConsoleText(text: string): string {
   parts.push(escapeHtml(text.slice(cursor)));
 
   return linkifyHtml(parts.join(""), linkifyJsOptions);
+}
+
+/**
+ * Linkify a console line.
+ *
+ * Jenkins log lines are a mix of plain text (`2>&1`, `a < b`, `=>`), HTML fragments
+ * (the `RUN_*_DISPLAY_URL` anchors) and ANSI color codes (the e2e logs colour whole
+ * lines), so: split the ANSI codes out first, keep the anchors as markup, escape
+ * the rest, and let linkify turn bare URLs into links.
+ *
+ * Splitting the ANSI codes out first is not cosmetic. linkify swallows a trailing
+ * escape sequence into the URL, producing
+ * `<a href="https://host:port\u001b[0m">https://host:port\u001b[0m</a>`;
+ * `tokenizeANSIString` then cuts that anchor in half at the escape code, and the
+ * page shows the leftover attribute text — the `=">https://host:port` seen in
+ * Jenkins (and a link whose href ends with the raw ESC bytes).
+ */
+export function linkifyConsoleText(text: string): string {
+  // split() 带捕获组时会把分隔符（即 escape 序列本身）留在结果里。
+  const segments = text.split(
+    new RegExp(`(${ANSI_ESCAPE_PATTERN.source})`, "g"),
+  );
+
+  return segments
+    .map((segment) =>
+      segment !== "" && !ANSI_ESCAPE_PATTERN.test(segment)
+        ? linkifySegment(segment)
+        : segment,
+    )
+    .join("");
 }

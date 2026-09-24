@@ -38,12 +38,13 @@
     `.ansi-fg-0`（主题黑 #333）在深色底上降级为 `#999`；想更黑直接改这几个色值
     （如 `#141414`、`#000`）
   - 字体与字重也对齐 BO：`font-family: "Source Code Pro", Menlo, Monaco, Consolas,
-    "Courier New", monospace`（BO 的 `@font-family-monospace`）、`font-weight: 400`，
+"Courier New", monospace`（BO 的 `@font-family-monospace`）、`font-weight: 400`，
     并加上 BO 同款的 `-webkit-font-smoothing: antialiased` /
     `-moz-osx-font-smoothing: grayscale`（macOS 上字形明显更细，默认渲染会偏粗）
   - `.console-text .ansi-bold { font-weight: normal !important; }`
 
   注：`ConsoleLine.tsx` 给 `<pre>` 内联了 `background: none`，所以深色背景必须用 `!important` 覆盖。
+
 - 原因：
   - 上游正文继承 Jenkins core 的 `pre { line-height: 1.66 }`（≈27px/行），行距很空；
     Blue Ocean 是 `1.2rem`（JDL 的 `theme.less` 把 `html` 设为 `62.5%`，即 12px）+ `.log-body p { min-height: 16px }`，
@@ -82,6 +83,24 @@
      并补上 React key。
 - 回归测试：`Ansi.spec.tsx` 里新增 4 个 jsdom 渲染用例 —— 彩色行的 `=>`/`<`、纯文本行的
   `<`/`&`、Jenkins 锚点仍是真链接（且不显示 `<a href` 文本）、URL 仍然是链接。
+
+### 5. 修复"URL 尾部 ANSI reset 被吞进链接"（`=">https://…`）
+
+- 文件：`src/main/frontend/common/utils/linkify-js.ts`
+- 现象：e2e 日志整行着色，行尾是 `…SKS_FILE_SERVER_URL=https://192.168.27.13:30443` + `ESC[0m`，
+  Graph View 里显示成 `SKS_FILE_SERVER_URL=">https://192.168.27.13:30443`，而且**不是链接**
+  （同一 URL 出现在 JSON 里时又是链接，看起来很不一致）。
+- 根因：`linkify-html` 把紧跟在 URL 后面的 **ANSI reset 当成 URL 的一部分**，产出
+  `<a href="https://host:port\u001b[0m" rel="…">https://host:port\u001b[0m</a>`；
+  而 `tokenizeANSIString` 正是**从 escape 处切开**文本 —— 锚点被撕成两半：前一半
+  `<a href="https://host:port` 渲染成一个空链接，后一半 `" rel="…">https://host:port` 变成
+  可见文本。片段里那个残留的 `">` 就是锚点标签的尾巴。JSON 里没有这个现象，是因为 URL 后面
+  跟的是 `"}` 而不是 escape。
+- 修复：`linkifyConsoleText()` 改为**先按 CSI escape 序列切开**，逐段做"保留 Jenkins 锚点 +
+  转义 + linkify"，最后拼回。escape 永远不会进入 linkify 的输入，锚点也就不会被撕开。
+- 回归测试：`Ansi.spec.tsx` 新增用例（彩色行 + 行尾 URL + reset）：断言 `a[href]` 恰好是
+  干净的 URL、文本里不出现 `rel=`、`">` 和 ESC 字节。旧实现下该用例失败
+  （`querySelector("a")` 为 null，锚点根本没能成形）。
 
 ### 构建与安装
 
