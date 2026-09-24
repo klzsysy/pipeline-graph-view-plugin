@@ -126,7 +126,7 @@ Jenkins → Manage Jenkins → Plugins → Advanced settings → **Deploy Plugin
 
 ### 版本号规则（重要）
 
-- 格式：**`<日期+时分>.v<短 sha>`**；当前版本 **`202609241636.v9aa5fe4`**
+- 格式：**`<日期+时分>.v<短 sha>`**；当前版本 **`202609241734.v5fa4f45`**
 - **必须始终大于上游构建号**（上游当前最新为 `1013.v9f83fd83c063`）。Jenkins 按版本号比较：
   低于上游时，update center 会把官方版当成"有更新"来提示，误点就会把本 fork 的定制覆盖掉
 - 版本号带**时分**：同一天多次重建既不撞号，也不会被判定成版本回退
@@ -175,7 +175,9 @@ ls -l target/pipeline-graph-view.hpi
   （`Plugin-Version: 202609231519.v9166254`、`Jenkins-Version: 2.555.3`），
   构建内的 `npm mvntest`（prettier + tsc + eslint + vitest）通过
 - 2026-09-24 复建（第 5 条修复）：`Plugin-Version: 202609241636.v9aa5fe4`，同样通过；
-  注意 `/tmp` 下自备的 Maven/依赖缓存会被 macOS 定期清理，重建需重新下载（本次约 18 分钟）
+  注意 `/tmp` 下自备的 Maven/依赖缓存会被 macOS 定期清理，重建需重新下载（首次约 18 分钟）
+- 2026-09-24 再次复建（第 5 条补上服务端坏锚点）：`Plugin-Version: 202609241734.v5fa4f45`，
+  依赖已缓存后约 3 分钟
 
 #### 网络：按仓库分流（重要）
 
